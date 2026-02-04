@@ -1,9 +1,11 @@
 from django.shortcuts import render
-from rest_framework import viewsets, permissions
+from rest_framework import viewsets, permissions, mixins
 from django.utils import timezone
 from django.db.models import Q
-from .models import Todo, Comment
-from .serializers import TodoSerializer, commentSerializer
+from .models import Todo, Comment, UserProfile
+from .serializers import TodoSerializer, commentSerializer, UserProfileSerializer
+from rest_framework.decorators import action
+from rest_framework.response import Response
 
 class IsownerOrReadOnly(permissions.BasePermission):
     """
@@ -44,3 +46,34 @@ class CommentViewSet(viewsets.ModelViewSet):
         
     def perform_create(self, serializer):
         serializer.save(author=self.request.user)
+
+class UserProfileViewset(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, viewsets.GenericViewSet):
+    queryset = UserProfile.objects.all()
+    serializer_class = UserProfileSerializer
+    permission_classes = [permissions.IsAuthenticated, IsownerOrReadOnly]
+
+    def get_object(self):
+        return self.request.user.profile
+    
+    # def list(self, request, *args, **kwargs):
+    #     instance = self.get_object()
+    #     serializer = self.get_serializer(instance)
+    #     return Response(serializer.data)
+
+    # def put(self, request, *args, **kwargs):
+    #     return self.update(request, *args, **kwargs)
+
+    # def patch(self, request, *args, **kwargs):
+    #     return self.partial_update(request, *args, **kwargs)
+
+    # def update(self, request, *args, **kwargs):
+    #     partial = kwargs.pop('partial', False)
+    #     instance = self.get_object()
+    #     serializer = self.get_serializer(instance, data=request.data, partial=partial)
+    #     serializer.is_valid(raise_exception=True)
+    #     serializer.save()
+    #     return Response(serializer.data)
+
+    # def partial_update(self, request, *args, **kwargs):
+    #     kwargs['partial'] = True
+    #     return self.update(request, *args, **kwargs)

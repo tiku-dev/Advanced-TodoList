@@ -1,6 +1,11 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Todo, Comment
+from .models import Todo, Comment, UserProfile
+
+class UserProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserProfile
+        fields = ['profile_picture']
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
