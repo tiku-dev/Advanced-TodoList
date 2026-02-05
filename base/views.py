@@ -1,9 +1,12 @@
 from django.shortcuts import render
-from rest_framework import viewsets, permissions, mixins
+from rest_framework import viewsets, permissions, mixins, status, generics
+from rest_framework.views import APIView
+from rest_framework.authtoken.models import Token
+from django.contrib.auth.models import User
 from django.utils import timezone
 from django.db.models import Q
 from .models import Todo, Comment, UserProfile
-from .serializers import TodoSerializer, commentSerializer, UserProfileSerializer
+from .serializers import TodoSerializer, commentSerializer, UserProfileSerializer, RegisterSerializer
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
@@ -55,25 +58,55 @@ class UserProfileViewset(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, vie
     def get_object(self):
         return self.request.user.profile
     
-    # def list(self, request, *args, **kwargs):
+    def list(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
+
+    def put(self, request, *args, **kwargs):
+        return self.update(request, *args, **kwargs)
+
+    def patch(self, request, *args, **kwargs):
+        return self.partial_update(request, *args, **kwargs)
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+    def partial_update(self, request, *args, **kwargs):
+        kwargs['partial'] = True
+        return self.update(request, *args, **kwargs)
+    
+    # def distroy(self, request, *args, **kwargs):
     #     instance = self.get_object()
-    #     serializer = self.get_serializer(instance)
-    #     return Response(serializer.data)
+    #     # Optionally delete the user as well if profile is deleted
+    #     user = instance.user
+    #     instance.delete()
+    #     user.delete()
+    #     return Response(status=status.HTTP_204_NO_CONTENT)
 
-    # def put(self, request, *args, **kwargs):
-    #     return self.update(request, *args, **kwargs)
+class RegisterView(generics.CreateAPIView):
+    queryset = User.objects.all()
+    permission_classes = [permissions.AllowAny]
+    serializer_class = RegisterSerializer
+    
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        token, created = Token.objects.get_or_create(user=user)
+        return Response({
+            'user': RegisterSerializer(user, context=self.get_serializer_context()).data,
+            'token': token.key
+        }, status=status.HTTP_201_CREATED)
 
-    # def patch(self, request, *args, **kwargs):
-    #     return self.partial_update(request, *args, **kwargs)
+class LogoutView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
 
-    # def update(self, request, *args, **kwargs):
-    #     partial = kwargs.pop('partial', False)
-    #     instance = self.get_object()
-    #     serializer = self.get_serializer(instance, data=request.data, partial=partial)
-    #     serializer.is_valid(raise_exception=True)
-    #     serializer.save()
-    #     return Response(serializer.data)
-
-    # def partial_update(self, request, *args, **kwargs):
-    #     kwargs['partial'] = True
-    #     return self.update(request, *args, **kwargs)
+    def post(self, request):
+        request.user.auth_token.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
